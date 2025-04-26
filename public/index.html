@@ -1,0 +1,1792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management System</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        :root {
+            --primary-color: #4285F4;
+            --secondary-color: #34A853;
+            --danger-color: #EA4335;
+            --background-color: #f5f5f5;
+            --card-color: #ffffff;
+            --tab-active: #4285F4;
+            --tab-inactive: #757575;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--background-color);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .auth-section {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 1rem;
+            cursor: pointer;
+            color: var(--tab-inactive);
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: var(--tab-active);
+            border-bottom-color: var(--tab-active);
+        }
+
+        .tab-content {
+            display: none;
+            background-color: var(--card-color);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-google {
+            background-color: white;
+            color: #757575;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 0 auto;
+        }
+
+        .items-list, .sales-list {
+            margin-top: 2rem;
+        }
+
+        .item-card, .sale-card {
+            background-color: var(--background-color);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-info, .sale-info {
+            flex-grow: 1;
+        }
+
+        .item-actions, .sale-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .user-info {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: #666;
+        }
+
+        .search-container {
+            margin-bottom: 1rem;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .summary-card {
+            background-color: var(--card-color);
+            padding: 1rem;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .summary-card h3 {
+            color: var(--tab-inactive);
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card p {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .settings-section {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .settings-card {
+            background-color: var(--card-color);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .settings-card h3 {
+            color: var(--tab-inactive);
+            margin-bottom: 1rem;
+        }
+
+        .settings-card p {
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+
+        .settings-card button {
+            width: 100%;
+        }
+
+        .settings-card select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        [dir="rtl"] {
+            text-align: right;
+        }
+
+        [dir="rtl"] .item-actions,
+        [dir="rtl"] .sale-actions {
+            flex-direction: row-reverse;
+        }
+
+        .monthly-summary {
+            margin-top: 2rem;
+            background-color: var(--card-color);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: var(--background-color);
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background-color: var(--background-color);
+        }
+
+        [dir="rtl"] th, [dir="rtl"] td {
+            text-align: right;
+        }
+
+        /* Add new styles for the improved item list */
+        .item-card {
+            background-color: var(--card-color);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+        }
+
+        .item-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .item-info-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .item-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            grid-column: 1 / -1;
+        }
+
+        .item-label {
+            font-size: 0.9rem;
+            color: var(--tab-inactive);
+            font-weight: 500;
+        }
+
+        .item-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .item-actions {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .item-timestamp {
+            grid-column: 1 / -1;
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+
+        /* Add new styles for the improved sales and adjustments lists */
+        .sale-card, .adjustment-card {
+            background-color: var(--card-color);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+        }
+
+        .sale-info, .adjustment-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .sale-info-group, .adjustment-info-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .sale-label, .adjustment-label {
+            font-size: 0.9rem;
+            color: var(--tab-inactive);
+            font-weight: 500;
+        }
+
+        .sale-value, .adjustment-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .sale-actions, .adjustment-actions {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .sale-timestamp, .adjustment-timestamp {
+            grid-column: 1 / -1;
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+
+        /* Add responsive styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            .container {
+                width: 100%;
+                padding: 0;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+                border-bottom: none;
+                gap: 0.5rem;
+            }
+
+            .tab {
+                flex: 1 1 calc(50% - 0.5rem);
+                text-align: center;
+                padding: 0.75rem;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                margin-bottom: 0.5rem;
+            }
+
+            .tab.active {
+                border-color: var(--tab-active);
+                background-color: var(--tab-active);
+                color: white;
+            }
+
+            .tab-content {
+                padding: 1rem;
+                border-radius: 4px;
+                margin-top: 1rem;
+            }
+
+            .form-group {
+                margin-bottom: 1rem;
+            }
+
+            input, select {
+                font-size: 16px; /* Prevents zoom on iOS */
+                padding: 0.75rem;
+            }
+
+            button {
+                padding: 0.75rem 1rem;
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+
+            .item-card, .sale-card, .adjustment-card {
+                padding: 1rem;
+                grid-template-columns: 1fr;
+            }
+
+            .item-info, .sale-info, .adjustment-info {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+
+            .item-actions, .sale-actions, .adjustment-actions {
+                flex-direction: column;
+                width: 100%;
+                margin-top: 1rem;
+                padding-top: 1rem;
+                border-top: 1px solid #eee;
+            }
+
+            .item-name {
+                font-size: 1.1rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .item-label, .sale-label, .adjustment-label {
+                font-size: 0.85rem;
+            }
+
+            .item-value, .sale-value, .adjustment-value {
+                font-size: 1rem;
+            }
+
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-card {
+                padding: 1rem;
+            }
+
+            .summary-card h3 {
+                font-size: 0.9rem;
+            }
+
+            .summary-card p {
+                font-size: 1.2rem;
+            }
+
+            .monthly-summary {
+                padding: 1rem;
+            }
+
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            table {
+                font-size: 0.9rem;
+            }
+
+            th, td {
+                padding: 0.5rem;
+                white-space: nowrap;
+            }
+
+            .settings-section {
+                padding: 0;
+            }
+
+            .settings-card {
+                padding: 1rem;
+            }
+
+            .settings-card h3 {
+                font-size: 1.1rem;
+            }
+
+            .settings-card p {
+                font-size: 0.9rem;
+            }
+
+            .user-info {
+                font-size: 0.9rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .header p {
+                font-size: 0.9rem;
+            }
+
+            .btn-google {
+                width: 100%;
+                padding: 0.75rem;
+            }
+
+            .btn-google img {
+                width: 18px;
+                height: 18px;
+            }
+
+            #sign-out-btn {
+                width: 100%;
+            }
+        }
+
+        /* Add touch-friendly styles */
+        @media (hover: none) {
+            button, .tab {
+                min-height: 44px; /* Minimum touch target size */
+            }
+
+            input, select {
+                min-height: 44px;
+            }
+
+            .item-actions button, 
+            .sale-actions button, 
+            .adjustment-actions button {
+                min-height: 44px;
+            }
+        }
+
+        /* Add landscape mode optimizations */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .tabs {
+                flex-wrap: nowrap;
+            }
+
+            .tab {
+                flex: 1;
+                padding: 0.5rem;
+            }
+
+            .item-info, .sale-info, .adjustment-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 data-translate="appTitle">Inventory Management System</h1>
+            <p data-translate="appSubtitle">Manage your inventory and sales with Google authentication</p>
+        </div>
+
+        <div class="auth-section">
+            <button id="sign-in-btn" class="btn-google" data-button="signIn">
+                <img src="https://www.google.com/favicon.ico" alt="Google" width="20">
+                Sign in with Google
+            </button>
+            <button id="sign-out-btn" class="btn-danger" style="display: none;" data-button="signOut">Sign Out</button>
+        </div>
+
+        <div id="user-info" class="user-info"></div>
+
+        <div id="app-content" style="display: none;">
+            <div class="tabs">
+                <div class="tab active" data-tab="items" data-translate="items">Items</div>
+                <div class="tab" data-tab="pos" data-translate="pos">POS</div>
+                <div class="tab" data-tab="sales" data-translate="sales">Sales</div>
+                <div class="tab" data-tab="adjustments" data-translate="adjustments">Adjustments</div>
+                <div class="tab" data-tab="summary" data-translate="summary">Summary</div>
+                <div class="tab" data-tab="settings" data-translate="settings">Settings</div>
+            </div>
+
+            <!-- Items Tab -->
+            <div id="items-tab" class="tab-content active">
+                <div class="form-group">
+                    <input type="text" id="itemName" placeholder="Item name" data-placeholder="itemName">
+                    <input type="number" id="wholesalePrice" placeholder="Wholesale price" step="0.01" data-placeholder="wholesalePrice" oninput="calculateItemTotal()">
+                    <input type="number" id="retailPrice" placeholder="Retail price" step="0.01" data-placeholder="retailPrice">
+                    <input type="number" id="itemQuantity" placeholder="Initial quantity" min="0" data-placeholder="initialQuantity" oninput="calculateItemTotal()">
+                    <div id="item-total-display" style="display: none;">
+                        <p><span data-translate="totalValue">Total Value</span>: $<span id="item-total-amount">0.00</span></p>
+                    </div>
+                    <button onclick="addItem()" class="btn-primary" data-button="addItem">Add Item</button>
+                </div>
+                <div id="items-list" class="items-list"></div>
+            </div>
+
+            <!-- POS Tab -->
+            <div id="pos-tab" class="tab-content">
+                <div class="search-container">
+                    <input type="text" id="searchItem" placeholder="Search items..." oninput="searchItems()" data-placeholder="searchItems">
+                </div>
+                <div id="search-results" class="items-list"></div>
+                <div class="form-group" id="sale-form" style="display: none;">
+                    <input type="number" id="saleQuantity" placeholder="Quantity" min="1" data-placeholder="quantity" oninput="calculateProfit()">
+                    <input type="number" id="salePrice" placeholder="Sale price" step="0.01" data-placeholder="salePrice" oninput="calculateProfit()">
+                    <div id="profit-display" style="display: none;">
+                        <p><span data-translate="profit">Profit</span>: $<span id="profit-amount">0.00</span></p>
+                        <p><span data-translate="profitPercentage">Profit Percentage</span>: <span id="profit-percentage">0</span>%</p>
+                    </div>
+                    <button onclick="confirmSale()" class="btn-primary" data-button="confirmSale">Confirm Sale</button>
+                </div>
+            </div>
+
+            <!-- Sales Tab -->
+            <div id="sales-tab" class="tab-content">
+                <div id="sales-list" class="sales-list"></div>
+            </div>
+
+            <!-- Adjustments Tab -->
+            <div id="adjustments-tab" class="tab-content">
+                <div class="search-container">
+                    <input type="text" id="searchAdjustmentItem" placeholder="Search items..." oninput="searchAdjustmentItems()" data-placeholder="searchAdjustments">
+                </div>
+                <div id="adjustment-search-results" class="items-list"></div>
+                <div class="form-group" id="adjustment-form" style="display: none;">
+                    <input type="number" id="adjustmentQuantity" placeholder="Quantity difference (positive or negative)" step="1" data-placeholder="quantityDifference">
+                    <input type="text" id="adjustmentReason" placeholder="Reason for adjustment" data-placeholder="reason">
+                    <button onclick="confirmAdjustment()" class="btn-primary" data-button="confirmAdjustment">Confirm Adjustment</button>
+                </div>
+                <div id="adjustments-list" class="items-list" style="margin-top: 2rem;"></div>
+            </div>
+
+            <!-- Summary Tab -->
+            <div id="summary-tab" class="tab-content">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <h3 data-translate="totalSales">Total Sales</h3>
+                        <p id="total-sales">$0.00</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3 data-translate="totalProfit">Total Profit</h3>
+                        <p id="total-profit">$0.00</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3 data-translate="inventoryWholesale">Inventory Value (Wholesale)</h3>
+                        <p id="inventory-wholesale">$0.00</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3 data-translate="inventoryRetail">Potential Retail Value</h3>
+                        <p id="inventory-retail">$0.00</p>
+                    </div>
+                </div>
+
+                <div class="monthly-summary">
+                    <h3 data-translate="monthlySummary">Monthly Summary</h3>
+                    <div class="table-container">
+                        <table id="monthly-summary-table">
+                            <thead>
+                                <tr>
+                                    <th data-translate="month">Month</th>
+                                    <th data-translate="totalItemValue">Total Item Value</th>
+                                    <th data-translate="numberOfSales">Number of Sales</th>
+                                    <th data-translate="totalSoldValue">Total Sold Value</th>
+                                    <th data-translate="totalProfit">Total Profit</th>
+                                    <th data-translate="avgDailySale">Avg Daily Sale</th>
+                                    <th data-translate="avgDailyProfit">Avg Daily Profit</th>
+                                    <th data-translate="expectedProfit">Expected Profit</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="tab-content">
+                <div class="settings-section">
+                    <h2 data-translate="dataManagement">Data Management</h2>
+                    <div class="settings-card">
+                        <h3 data-translate="clearAllData">Clear All Data</h3>
+                        <p data-translate="clearDataWarning">This will permanently delete all your items, sales, and adjustments. This action cannot be undone.</p>
+                        <button onclick="clearAllData()" class="btn-danger" data-button="clearAllData">Clear All Data</button>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <h3 data-translate="languageSettings">Language Settings</h3>
+                        <p data-translate="chooseLanguage">Choose your preferred language</p>
+                        <select id="language-select" onchange="changeLanguage(this.value)">
+                            <option value="en">English</option>
+                            <option value="ar">العربية (Arabic)</option>
+                        </select>
+                        <button onclick="saveLanguageSettings()" class="btn-primary" data-button="saveSettings">Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC8bjpWrh95tG0jHqm5WRICZGHAfsgUJIo",
+            authDomain: "crud-app-bb78a.firebaseapp.com",
+            projectId: "crud-app-bb78a",
+            storageBucket: "crud-app-bb78a.firebasestorage.app",
+            messagingSenderId: "934806638001",
+            appId: "1:934806638001:web:c4cd7c7f924f2537810190"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // DOM Elements
+        const signInBtn = document.getElementById('sign-in-btn');
+        const signOutBtn = document.getElementById('sign-out-btn');
+        const userInfoDiv = document.getElementById('user-info');
+        const appContent = document.getElementById('app-content');
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        // Tab switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+                
+                // Refresh data if needed
+                if (tab.dataset.tab === 'summary') {
+                    updateSummary();
+                    calculateMonthlySummary();
+                }
+            });
+        });
+
+        // Auth State Listener
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                userInfoDiv.innerHTML = `<span data-translate="welcome">Welcome</span>, ${user.displayName}!`;
+                appContent.style.display = 'block';
+                signInBtn.style.display = 'none';
+                signOutBtn.style.display = 'inline-block';
+                loadItems();
+                loadSales();
+                loadAdjustments();
+                translatePage();
+            } else {
+                userInfoDiv.textContent = '';
+                appContent.style.display = 'none';
+                signInBtn.style.display = 'inline-block';
+                signOutBtn.style.display = 'none';
+            }
+        });
+
+        // Sign In Function
+        signInBtn.onclick = () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            provider.addScope('profile');
+            provider.addScope('email');
+            
+            auth.signInWithPopup(provider)
+                .catch(error => {
+                    console.error("Sign-in error:", error);
+                    alert("Error signing in: " + error.message);
+                });
+        };
+
+        // Sign Out Function
+        signOutBtn.onclick = () => {
+            auth.signOut();
+        };
+
+        // Add Item Function
+        function addItem() {
+            const name = document.getElementById('itemName').value.trim();
+            const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value);
+            const retailPrice = parseFloat(document.getElementById('retailPrice').value);
+            const quantity = parseInt(document.getElementById('itemQuantity').value);
+            
+            if (!name || isNaN(wholesalePrice) || isNaN(retailPrice) || isNaN(quantity) || quantity < 0) {
+                alert('Please enter valid values for all fields');
+                return;
+            }
+
+            const user = auth.currentUser;
+            if (!user) return;
+
+            db.collection(`users/${user.uid}/items`).add({
+                name: name,
+                wholesalePrice: wholesalePrice,
+                retailPrice: retailPrice,
+                quantity: quantity,
+                remaining: quantity,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            })
+            .then(() => {
+                document.getElementById('itemName').value = '';
+                document.getElementById('wholesalePrice').value = '';
+                document.getElementById('retailPrice').value = '';
+                document.getElementById('itemQuantity').value = '';
+                document.getElementById('item-total-display').style.display = 'none';
+            })
+            .catch(error => {
+                console.error("Error adding item:", error);
+                alert("Error adding item: " + error.message);
+            });
+        }
+
+        // Load Items Function
+        function loadItems() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            db.collection(`users/${user.uid}/items`)
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(snapshot => {
+                    const itemsList = document.getElementById('items-list');
+                    itemsList.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const item = doc.data();
+                        const itemCard = document.createElement('div');
+                        itemCard.className = 'item-card';
+                        itemCard.innerHTML = `
+                            <div class="item-info">
+                                <div class="item-name">${item.name}</div>
+                                <div class="item-info-group">
+                                    <span class="item-label" data-translate="quantity">Quantity</span>
+                                    <span class="item-value">${item.quantity} Total, ${item.remaining} Remaining</span>
+                                </div>
+                                <div class="item-info-group">
+                                    <span class="item-label" data-translate="wholesalePrice">Wholesale Price</span>
+                                    <span class="item-value">$${item.wholesalePrice.toFixed(2)}</span>
+                                </div>
+                                <div class="item-info-group">
+                                    <span class="item-label" data-translate="retailPrice">Retail Price</span>
+                                    <span class="item-value">$${item.retailPrice.toFixed(2)}</span>
+                                </div>
+                                <div class="item-info-group">
+                                    <span class="item-label" data-translate="totalValue">Total Value</span>
+                                    <span class="item-value">$${(item.quantity * item.wholesalePrice).toFixed(2)}</span>
+                                </div>
+                                <div class="item-timestamp">
+                                    <span data-translate="added">Added</span>: ${new Date(item.createdAt.toDate()).toLocaleString()}
+                                </div>
+                            </div>
+                            <div class="item-actions">
+                                <button onclick="deleteItem('${doc.id}')" class="btn-danger" data-button="delete">Delete</button>
+                            </div>
+                        `;
+                        itemsList.appendChild(itemCard);
+                    });
+                    translatePage();
+                });
+        }
+
+        // Search Items Function
+        function searchItems() {
+            const searchTerm = document.getElementById('searchItem').value.toLowerCase();
+            const user = auth.currentUser;
+            if (!user) return;
+
+            db.collection(`users/${user.uid}/items`)
+                .orderBy('name')
+                .onSnapshot(snapshot => {
+                    const searchResults = document.getElementById('search-results');
+                    searchResults.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const item = doc.data();
+                        if (item.name.toLowerCase().includes(searchTerm)) {
+                            const itemCard = document.createElement('div');
+                            itemCard.className = 'item-card';
+                            itemCard.innerHTML = `
+                                <div class="item-info">
+                                    <div class="item-name">${item.name}</div>
+                                    <div class="item-info-group">
+                                        <span class="item-label" data-translate="remaining">Remaining</span>
+                                        <span class="item-value">${item.remaining}</span>
+                                    </div>
+                                    <div class="item-info-group">
+                                        <span class="item-label" data-translate="wholesalePrice">Wholesale Price</span>
+                                        <span class="item-value">$${item.wholesalePrice.toFixed(2)}</span>
+                                    </div>
+                                    <div class="item-info-group">
+                                        <span class="item-label" data-translate="retailPrice">Retail Price</span>
+                                        <span class="item-value">$${item.retailPrice.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                                <div class="item-actions">
+                                    <button onclick="selectItemForSale('${doc.id}', '${item.name}', ${item.wholesalePrice}, ${item.retailPrice}, ${item.remaining})" 
+                                            class="btn-primary" ${item.remaining <= 0 ? 'disabled' : ''} data-button="${item.remaining <= 0 ? 'outOfStock' : 'select'}">
+                                        ${item.remaining <= 0 ? 'Out of Stock' : 'Select'}
+                                    </button>
+                                </div>
+                            `;
+                            searchResults.appendChild(itemCard);
+                        }
+                    });
+                    translatePage();
+                });
+        }
+
+        // Select Item for Sale
+        function selectItemForSale(itemId, itemName, wholesalePrice, retailPrice, availableQuantity) {
+            if (availableQuantity <= 0) {
+                alert('This item is out of stock');
+                return;
+            }
+            const saleForm = document.getElementById('sale-form');
+            saleForm.style.display = 'block';
+            saleForm.dataset.itemId = itemId;
+            saleForm.dataset.wholesalePrice = wholesalePrice;
+            saleForm.dataset.availableQuantity = availableQuantity;
+            document.getElementById('salePrice').value = retailPrice;
+            document.getElementById('saleQuantity').max = availableQuantity;
+            document.getElementById('saleQuantity').value = '';
+            document.getElementById('profit-display').style.display = 'none';
+            calculateProfit();
+        }
+
+        // Confirm Sale Function
+        function confirmSale() {
+            const saleForm = document.getElementById('sale-form');
+            const itemId = saleForm.dataset.itemId;
+            const quantity = parseInt(document.getElementById('saleQuantity').value);
+            const salePrice = parseFloat(document.getElementById('salePrice').value);
+            const wholesalePrice = parseFloat(saleForm.dataset.wholesalePrice);
+            const availableQuantity = parseInt(saleForm.dataset.availableQuantity);
+
+            if (isNaN(quantity) || isNaN(salePrice) || quantity < 1 || quantity > availableQuantity) {
+                alert('Please enter valid quantity and price');
+                return;
+            }
+
+            const user = auth.currentUser;
+            if (!user) return;
+
+            const profit = (salePrice - wholesalePrice) * quantity;
+
+            // Start a batch write to update both the item quantity and create the sale record
+            const batch = db.batch();
+            
+            // Update item remaining quantity
+            const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
+            batch.update(itemRef, {
+                remaining: firebase.firestore.FieldValue.increment(-quantity)
+            });
+
+            // Create sale record
+            const saleRef = db.collection(`users/${user.uid}/sales`).doc();
+            batch.set(saleRef, {
+                itemId: itemId,
+                quantity: quantity,
+                salePrice: salePrice,
+                wholesalePrice: wholesalePrice,
+                profit: profit,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            batch.commit()
+                .then(() => {
+                    document.getElementById('saleQuantity').value = '';
+                    document.getElementById('salePrice').value = '';
+                    saleForm.style.display = 'none';
+                    loadSales();
+                    updateSummary();
+                })
+                .catch(error => {
+                    console.error("Error recording sale:", error);
+                    alert("Error recording sale: " + error.message);
+                });
+        }
+
+        // Load Sales Function
+        async function loadSales() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Clear the existing listener if it exists
+            if (window.salesListener) {
+                window.salesListener();
+            }
+
+            // Create a new listener
+            window.salesListener = db.collection(`users/${user.uid}/sales`)
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(async snapshot => {
+                    const salesList = document.getElementById('sales-list');
+                    salesList.innerHTML = '';
+                    
+                    // Create a map to store item names
+                    const itemNames = new Map();
+                    
+                    // First, get all unique item IDs from sales
+                    const itemIds = new Set();
+                    snapshot.forEach(doc => {
+                        const sale = doc.data();
+                        itemIds.add(sale.itemId);
+                    });
+
+                    // Fetch all items to get their names
+                    const itemsSnapshot = await db.collection(`users/${user.uid}/items`).get();
+                    itemsSnapshot.forEach(doc => {
+                        itemNames.set(doc.id, doc.data().name);
+                    });
+
+                    // Now create the sales list with item names
+                    snapshot.forEach(doc => {
+                        const sale = doc.data();
+                        const profitPercentage = ((sale.salePrice - sale.wholesalePrice) / sale.wholesalePrice) * 100;
+                        const itemName = itemNames.get(sale.itemId) || 'Unknown Item';
+                        
+                        const saleCard = document.createElement('div');
+                        saleCard.className = 'sale-card';
+                        saleCard.innerHTML = `
+                            <div class="sale-info">
+                                <div class="item-name">${itemName}</div>
+                                <div class="item-info-group">
+                                    <span class="sale-label" data-translate="quantity">Quantity</span>
+                                    <span class="sale-value">${sale.quantity}</span>
+                                </div>
+                                <div class="item-info-group">
+                                    <span class="sale-label" data-translate="salePrice">Sale Price</span>
+                                    <span class="sale-value">$${sale.salePrice.toFixed(2)}</span>
+                                </div>
+                                <div class="item-info-group">
+                                    <span class="sale-label" data-translate="profit">Profit</span>
+                                    <span class="sale-value">$${sale.profit.toFixed(2)}</span>
+                                </div>
+                                <div class="item-info-group">
+                                    <span class="sale-label" data-translate="profitPercentage">Profit Percentage</span>
+                                    <span class="sale-value">${profitPercentage.toFixed(2)}%</span>
+                                </div>
+                                <div class="sale-timestamp">
+                                    <span data-translate="sold">Sold</span>: ${new Date(sale.createdAt.toDate()).toLocaleString()}
+                                </div>
+                            </div>
+                            <div class="sale-actions">
+                                <button onclick="editSale('${doc.id}', '${sale.itemId}', ${sale.quantity}, ${sale.salePrice})" class="btn-primary" data-button="edit">Edit</button>
+                                <button onclick="deleteSale('${doc.id}', '${sale.itemId}', ${sale.quantity})" class="btn-danger" data-button="delete">Delete</button>
+                            </div>
+                        `;
+                        salesList.appendChild(saleCard);
+                    });
+                    translatePage();
+                });
+        }
+
+        // Edit Sale Function
+        function editSale(saleId, itemId, currentQuantity, currentPrice) {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Get current item details
+            db.collection(`users/${user.uid}/items`).doc(itemId).get()
+                .then(itemDoc => {
+                    if (!itemDoc.exists) {
+                        alert('Original item no longer exists. Cannot edit this sale.');
+                        return;
+                    }
+
+                    const item = itemDoc.data();
+                    const newQuantity = parseInt(prompt('Enter new quantity:', currentQuantity));
+                    const newPrice = parseFloat(prompt('Enter new sale price:', currentPrice));
+
+                    if (isNaN(newQuantity) || isNaN(newPrice) || newQuantity < 1) {
+                        alert('Please enter valid quantity and price');
+                        return;
+                    }
+
+                    // Calculate the difference in quantity
+                    const quantityDiff = newQuantity - currentQuantity;
+                    
+                    // Check if we have enough stock for the increase
+                    if (quantityDiff > 0 && item.quantity < quantityDiff) {
+                        alert(`Not enough stock available. Only ${item.quantity} items in stock.`);
+                        return;
+                    }
+
+                    // Calculate new profit
+                    const newProfit = (newPrice - item.wholesalePrice) * newQuantity;
+
+                    // Start a batch write to update both the item quantity and sale record
+                    const batch = db.batch();
+                    
+                    // Update item quantity
+                    const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
+                    batch.update(itemRef, {
+                        quantity: firebase.firestore.FieldValue.increment(-quantityDiff)
+                    });
+
+                    // Update sale record
+                    const saleRef = db.collection(`users/${user.uid}/sales`).doc(saleId);
+                    batch.update(saleRef, {
+                        quantity: newQuantity,
+                        salePrice: newPrice,
+                        profit: newProfit
+                    });
+
+                    return batch.commit();
+                })
+                .then(() => {
+                    loadSales();
+                    loadItems();
+                    updateSummary();
+                })
+                .catch(error => {
+                    console.error("Error updating sale:", error);
+                    alert("Error updating sale: " + error.message);
+                });
+        }
+
+        // Delete Sale Function
+        function deleteSale(saleId, itemId, quantity) {
+            if (!confirm('Are you sure you want to delete this sale?')) {
+                return;
+            }
+
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // First check if the item still exists
+            db.collection(`users/${user.uid}/items`).doc(itemId).get()
+                .then(itemDoc => {
+                    const batch = db.batch();
+                    
+                    // Only update item remaining quantity if the item still exists
+                    if (itemDoc.exists) {
+                        const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
+                        batch.update(itemRef, {
+                            remaining: firebase.firestore.FieldValue.increment(quantity)
+                        });
+                    } else {
+                        console.log('Original item no longer exists, skipping quantity restoration');
+                    }
+
+                    // Delete sale record
+                    const saleRef = db.collection(`users/${user.uid}/sales`).doc(saleId);
+                    batch.delete(saleRef);
+
+                    return batch.commit();
+                })
+                .then(() => {
+                    loadSales();
+                    loadItems();
+                    updateSummary();
+                })
+                .catch(error => {
+                    console.error("Error deleting sale:", error);
+                    alert("Error deleting sale: " + error.message);
+                });
+        }
+
+        // Update Summary Function
+        function updateSummary() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Calculate total sales and profit
+            db.collection(`users/${user.uid}/sales`).get()
+                .then(salesSnapshot => {
+                    let totalSales = 0;
+                    let totalProfit = 0;
+
+                    if (!salesSnapshot.empty) {
+                        salesSnapshot.forEach(doc => {
+                            const sale = doc.data();
+                            totalSales += (sale.salePrice || 0) * (sale.quantity || 0);
+                            totalProfit += sale.profit || 0;
+                        });
+                    }
+
+                    document.getElementById('total-sales').textContent = `$${totalSales.toFixed(2)}`;
+                    document.getElementById('total-profit').textContent = `$${totalProfit.toFixed(2)}`;
+                })
+                .catch(error => {
+                    console.error("Error calculating sales summary:", error);
+                    document.getElementById('total-sales').textContent = '$0.00';
+                    document.getElementById('total-profit').textContent = '$0.00';
+                });
+
+            // Calculate inventory values using remaining stock
+            db.collection(`users/${user.uid}/items`).get()
+                .then(itemsSnapshot => {
+                    let wholesaleValue = 0;
+                    let retailValue = 0;
+
+                    if (!itemsSnapshot.empty) {
+                        itemsSnapshot.forEach(doc => {
+                            const item = doc.data();
+                            const remaining = item.remaining || 0;
+                            wholesaleValue += (item.wholesalePrice || 0) * remaining;
+                            retailValue += (item.retailPrice || 0) * remaining;
+                        });
+                    }
+
+                    document.getElementById('inventory-wholesale').textContent = `$${wholesaleValue.toFixed(2)}`;
+                    document.getElementById('inventory-retail').textContent = `$${retailValue.toFixed(2)}`;
+                })
+                .catch(error => {
+                    console.error("Error calculating inventory values:", error);
+                    document.getElementById('inventory-wholesale').textContent = '$0.00';
+                    document.getElementById('inventory-retail').textContent = '$0.00';
+                });
+        }
+
+        // Delete Item Function
+        function deleteItem(itemId) {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            if (confirm('Are you sure you want to delete this item?')) {
+                db.collection(`users/${user.uid}/items`).doc(itemId).delete()
+                    .catch(error => {
+                        console.error("Error deleting item:", error);
+                        alert("Error deleting item: " + error.message);
+                    });
+            }
+        }
+
+        // Load Adjustments Function
+        function loadAdjustments() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            db.collection(`users/${user.uid}/adjustments`)
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(snapshot => {
+                    const adjustmentsList = document.getElementById('adjustments-list');
+                    adjustmentsList.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const adjustment = doc.data();
+                        const adjustmentCard = document.createElement('div');
+                        adjustmentCard.className = 'adjustment-card';
+                        adjustmentCard.innerHTML = `
+                            <div class="adjustment-info">
+                                <div class="item-name">${adjustment.itemName}</div>
+                                <div class="item-info-group">
+                                    <span class="adjustment-label" data-translate="quantityDifference">Quantity Difference</span>
+                                    <span class="adjustment-value">${adjustment.quantity > 0 ? '+' : ''}${adjustment.quantity}</span>
+                                </div>
+                                <div class="item-info-group">
+                                    <span class="adjustment-label" data-translate="reason">Reason</span>
+                                    <span class="adjustment-value">${adjustment.reason}</span>
+                                </div>
+                                <div class="adjustment-timestamp">
+                                    <span data-translate="adjusted">Adjusted</span>: ${new Date(adjustment.createdAt.toDate()).toLocaleString()}
+                                </div>
+                            </div>
+                            <div class="adjustment-actions">
+                                <button onclick="deleteAdjustment('${doc.id}', '${adjustment.itemId}', ${adjustment.quantity})" class="btn-danger" data-button="delete">Delete</button>
+                            </div>
+                        `;
+                        adjustmentsList.appendChild(adjustmentCard);
+                    });
+                    translatePage();
+                });
+        }
+
+        // Search Items for Adjustment
+        function searchAdjustmentItems() {
+            const searchTerm = document.getElementById('searchAdjustmentItem').value.toLowerCase();
+            const user = auth.currentUser;
+            if (!user) return;
+
+            db.collection(`users/${user.uid}/items`)
+                .orderBy('name')
+                .onSnapshot(snapshot => {
+                    const searchResults = document.getElementById('adjustment-search-results');
+                    searchResults.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const item = doc.data();
+                        if (item.name.toLowerCase().includes(searchTerm)) {
+                            const itemCard = document.createElement('div');
+                            itemCard.className = 'item-card';
+                            itemCard.innerHTML = `
+                                <div class="item-info">
+                                    <strong>${item.name}</strong>
+                                    <p data-translate="currentQuantity">Current Quantity</p>: ${item.quantity}
+                                </div>
+                                <div class="item-actions">
+                                    <button onclick="selectItemForAdjustment('${doc.id}', '${item.name}', ${item.quantity})" class="btn-primary" data-button="select">Select</button>
+                                </div>
+                            `;
+                            searchResults.appendChild(itemCard);
+                        }
+                    });
+                    translatePage();
+                });
+        }
+
+        // Select Item for Adjustment
+        function selectItemForAdjustment(itemId, itemName, currentQuantity) {
+            const adjustmentForm = document.getElementById('adjustment-form');
+            adjustmentForm.style.display = 'block';
+            adjustmentForm.dataset.itemId = itemId;
+            adjustmentForm.dataset.itemName = itemName;
+            adjustmentForm.dataset.currentQuantity = currentQuantity;
+        }
+
+        // Confirm Adjustment Function
+        function confirmAdjustment() {
+            const adjustmentForm = document.getElementById('adjustment-form');
+            const itemId = adjustmentForm.dataset.itemId;
+            const itemName = adjustmentForm.dataset.itemName;
+            const quantity = parseInt(document.getElementById('adjustmentQuantity').value);
+            const reason = document.getElementById('adjustmentReason').value.trim();
+            const currentQuantity = parseInt(adjustmentForm.dataset.currentQuantity);
+
+            if (isNaN(quantity) || !reason) {
+                alert('Please enter valid quantity and reason');
+                return;
+            }
+
+            // Check if the adjustment would make quantity negative
+            if (currentQuantity + quantity < 0) {
+                alert(`Cannot adjust quantity below 0. Current quantity: ${currentQuantity}`);
+                return;
+            }
+
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Start a batch write to update both the item quantity and create the adjustment record
+            const batch = db.batch();
+            
+            // Update item quantity
+            const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
+            batch.update(itemRef, {
+                quantity: firebase.firestore.FieldValue.increment(quantity)
+            });
+
+            // Create adjustment record
+            const adjustmentRef = db.collection(`users/${user.uid}/adjustments`).doc();
+            batch.set(adjustmentRef, {
+                itemId: itemId,
+                itemName: itemName,
+                quantity: quantity,
+                reason: reason,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            batch.commit()
+                .then(() => {
+                    document.getElementById('adjustmentQuantity').value = '';
+                    document.getElementById('adjustmentReason').value = '';
+                    adjustmentForm.style.display = 'none';
+                    loadAdjustments();
+                    loadItems();
+                })
+                .catch(error => {
+                    console.error("Error recording adjustment:", error);
+                    alert("Error recording adjustment: " + error.message);
+                });
+        }
+
+        // Delete Adjustment Function
+        function deleteAdjustment(adjustmentId, itemId, quantity) {
+            if (!confirm('Are you sure you want to delete this adjustment?')) {
+                return;
+            }
+
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Start a batch write to restore item quantity and delete adjustment record
+            const batch = db.batch();
+            
+            // Restore item quantity
+            const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
+            batch.update(itemRef, {
+                quantity: firebase.firestore.FieldValue.increment(-quantity)
+            });
+
+            // Delete adjustment record
+            const adjustmentRef = db.collection(`users/${user.uid}/adjustments`).doc(adjustmentId);
+            batch.delete(adjustmentRef);
+
+            batch.commit()
+                .then(() => {
+                    loadAdjustments();
+                    loadItems();
+                })
+                .catch(error => {
+                    console.error("Error deleting adjustment:", error);
+                    alert("Error deleting adjustment: " + error.message);
+                });
+        }
+
+        // Add new function for clearing all data
+        async function clearAllData() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Show warning and get confirmation
+            if (!confirm('WARNING: This will permanently delete ALL your data including items, sales, and adjustments. This action cannot be undone. Are you absolutely sure?')) {
+                return;
+            }
+
+            // Get second confirmation
+            if (!confirm('Are you REALLY sure? This will delete ALL your data permanently.')) {
+                return;
+            }
+
+            try {
+                // Get all collections
+                const collections = ['items', 'sales', 'adjustments'];
+                
+                // Delete all documents in each collection
+                for (const collection of collections) {
+                    const snapshot = await db.collection(`users/${user.uid}/${collection}`).get();
+                    const batch = db.batch();
+                    
+                    snapshot.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    await batch.commit();
+                }
+
+                // Show success message
+                alert('All data has been cleared successfully.');
+                
+                // Refresh the UI
+                loadItems();
+                loadSales();
+                loadAdjustments();
+                updateSummary();
+            } catch (error) {
+                console.error("Error clearing data:", error);
+                alert("Error clearing data: " + error.message);
+            }
+        }
+
+        // Add new function for profit calculation
+        function calculateProfit() {
+            const saleForm = document.getElementById('sale-form');
+            const quantity = parseFloat(document.getElementById('saleQuantity').value);
+            const salePrice = parseFloat(document.getElementById('salePrice').value);
+            const wholesalePrice = parseFloat(saleForm.dataset.wholesalePrice);
+            const profitDisplay = document.getElementById('profit-display');
+
+            if (!isNaN(quantity) && !isNaN(salePrice) && quantity > 0 && salePrice > 0) {
+                const profit = (salePrice - wholesalePrice) * quantity;
+                const profitPercentage = ((salePrice - wholesalePrice) / wholesalePrice) * 100;
+                
+                document.getElementById('profit-amount').textContent = profit.toFixed(2);
+                document.getElementById('profit-percentage').textContent = profitPercentage.toFixed(2);
+                profitDisplay.style.display = 'block';
+            } else {
+                profitDisplay.style.display = 'none';
+            }
+        }
+
+        // Add new function for item total calculation
+        function calculateItemTotal() {
+            const quantity = parseFloat(document.getElementById('itemQuantity').value);
+            const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value);
+            const totalDisplay = document.getElementById('item-total-display');
+
+            if (!isNaN(quantity) && !isNaN(wholesalePrice) && quantity >= 0 && wholesalePrice >= 0) {
+                const total = quantity * wholesalePrice;
+                document.getElementById('item-total-amount').textContent = total.toFixed(2);
+                totalDisplay.style.display = 'block';
+            } else {
+                totalDisplay.style.display = 'none';
+            }
+        }
+
+        // Update the translations object with new keys
+        const translations = {
+            en: {
+                appTitle: "Inventory Management System",
+                appSubtitle: "Manage your inventory and sales with Google authentication",
+                signIn: "Sign in with Google",
+                signOut: "Sign Out",
+                welcome: "Welcome, ",
+                items: "Items",
+                pos: "POS",
+                sales: "Sales",
+                adjustments: "Adjustments",
+                summary: "Summary",
+                settings: "Settings",
+                addItem: "Add Item",
+                itemName: "Item name",
+                wholesalePrice: "Wholesale price",
+                retailPrice: "Retail price",
+                initialQuantity: "Initial quantity",
+                quantity: "Quantity",
+                available: "Available",
+                outOfStock: "Out of Stock",
+                select: "Select",
+                confirmSale: "Confirm Sale",
+                salePrice: "Sale price",
+                profit: "Profit",
+                sold: "Sold",
+                edit: "Edit",
+                delete: "Delete",
+                totalSales: "Total Sales",
+                totalProfit: "Total Profit",
+                inventoryWholesale: "Inventory Value (Wholesale)",
+                inventoryRetail: "Potential Retail Value",
+                dataManagement: "Data Management",
+                clearAllData: "Clear All Data",
+                clearDataWarning: "This will permanently delete all your items, sales, and adjustments. This action cannot be undone.",
+                languageSettings: "Language Settings",
+                chooseLanguage: "Choose your preferred language",
+                searchItems: "Search items...",
+                searchAdjustments: "Search items...",
+                quantityDifference: "Quantity difference (positive or negative)",
+                reason: "Reason for adjustment",
+                confirmAdjustment: "Confirm Adjustment",
+                deleteConfirmation: "Are you sure you want to delete this?",
+                clearDataConfirmation1: "WARNING: This will permanently delete ALL your data including items, sales, and adjustments. This action cannot be undone. Are you absolutely sure?",
+                clearDataConfirmation2: "Are you REALLY sure? This will delete ALL your data permanently.",
+                dataCleared: "All data has been cleared successfully.",
+                totalValue: "Total Value",
+                added: "Added",
+                adjusted: "Adjusted",
+                saveSettings: "Save Settings",
+                settingsSaved: "Settings saved successfully",
+                currentQuantity: "Current Quantity",
+                profitPercentage: "Profit Percentage",
+                monthlySummary: "Monthly Summary",
+                month: "Month",
+                totalItemValue: "Total Item Value",
+                numberOfSales: "Number of Sales",
+                totalSoldValue: "Total Sold Value",
+                avgDailySale: "Avg Daily Sale",
+                avgDailyProfit: "Avg Daily Profit",
+                expectedProfit: "Expected Profit"
+            },
+            ar: {
+                appTitle: "نظام إدارة المخزون",
+                appSubtitle: "إدارة المخزون والمبيعات مع المصادقة من جوجل",
+                signIn: "تسجيل الدخول باستخدام جوجل",
+                signOut: "تسجيل الخروج",
+                welcome: "مرحباً، ",
+                items: "المنتجات",
+                pos: "نقطة البيع",
+                sales: "المبيعات",
+                adjustments: "التعديلات",
+                summary: "الملخص",
+                settings: "الإعدادات",
+                addItem: "إضافة منتج",
+                itemName: "اسم المنتج",
+                wholesalePrice: "سعر الجملة",
+                retailPrice: "سعر التجزئة",
+                initialQuantity: "الكمية الأولية",
+                quantity: "الكمية",
+                available: "متوفر",
+                outOfStock: "غير متوفر",
+                select: "اختيار",
+                confirmSale: "تأكيد البيع",
+                salePrice: "سعر البيع",
+                profit: "الربح",
+                sold: "تم البيع",
+                edit: "تعديل",
+                delete: "حذف",
+                totalSales: "إجمالي المبيعات",
+                totalProfit: "إجمالي الربح",
+                inventoryWholesale: "قيمة المخزون (الجملة)",
+                inventoryRetail: "القيمة المحتملة للتجزئة",
+                dataManagement: "إدارة البيانات",
+                clearAllData: "مسح جميع البيانات",
+                clearDataWarning: "سيتم حذف جميع المنتجات والمبيعات والتعديلات بشكل دائم. لا يمكن التراجع عن هذا الإجراء.",
+                languageSettings: "إعدادات اللغة",
+                chooseLanguage: "اختر لغتك المفضلة",
+                searchItems: "بحث عن المنتجات...",
+                searchAdjustments: "بحث عن المنتجات...",
+                quantityDifference: "فرق الكمية (موجب أو سالب)",
+                reason: "سبب التعديل",
+                confirmAdjustment: "تأكيد التعديل",
+                deleteConfirmation: "هل أنت متأكد من حذف هذا؟",
+                clearDataConfirmation1: "تحذير: سيتم حذف جميع بياناتك بما في ذلك المنتجات والمبيعات والتعديلات بشكل دائم. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد تماماً؟",
+                clearDataConfirmation2: "هل أنت متأكد حقاً؟ سيتم حذف جميع بياناتك بشكل دائم.",
+                dataCleared: "تم مسح جميع البيانات بنجاح.",
+                totalValue: "القيمة الإجمالية",
+                added: "تم الإضافة",
+                adjusted: "تم التعديل",
+                saveSettings: "حفظ الإعدادات",
+                settingsSaved: "تم حفظ الإعدادات بنجاح",
+                currentQuantity: "الكمية الحالية",
+                profitPercentage: "نسبة الربح",
+                monthlySummary: "ملخص شهري",
+                month: "الشهر",
+                totalItemValue: "إجمالي قيمة العناصر",
+                numberOfSales: "عدد المبيعات",
+                totalSoldValue: "إجمالي قيمة المبيعات",
+                avgDailySale: "متوسط المبيعات اليومي",
+                avgDailyProfit: "متوسط الربح اليومي",
+                expectedProfit: "الربح المتوقع"
+            }
+        };
+
+        // Update language functions
+        let currentLanguage = localStorage.getItem('language') || 'en';
+        let languageChanged = false;
+
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            languageChanged = true;
+            document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+            translatePage();
+        }
+
+        function saveLanguageSettings() {
+            if (languageChanged) {
+                localStorage.setItem('language', currentLanguage);
+                alert(translations[currentLanguage].settingsSaved);
+                languageChanged = false;
+            }
+        }
+
+        function translatePage() {
+            const elements = document.querySelectorAll('[data-translate]');
+            elements.forEach(element => {
+                const key = element.getAttribute('data-translate');
+                element.textContent = translations[currentLanguage][key];
+            });
+
+            // Update placeholders
+            document.querySelectorAll('[data-placeholder]').forEach(element => {
+                const key = element.getAttribute('data-placeholder');
+                element.placeholder = translations[currentLanguage][key];
+            });
+
+            // Update button text
+            document.querySelectorAll('[data-button]').forEach(element => {
+                const key = element.getAttribute('data-button');
+                element.textContent = translations[currentLanguage][key];
+            });
+
+            // Update select options
+            const languageSelect = document.getElementById('language-select');
+            if (languageSelect) {
+                languageSelect.value = currentLanguage;
+            }
+        }
+
+        // Initialize language on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLanguage = localStorage.getItem('language');
+            if (savedLanguage) {
+                currentLanguage = savedLanguage;
+                document.documentElement.dir = savedLanguage === 'ar' ? 'rtl' : 'ltr';
+            }
+            translatePage();
+        });
+
+        // Add new function to calculate monthly summary
+        async function calculateMonthlySummary() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                // Get all items and sales
+                const [itemsSnapshot, salesSnapshot] = await Promise.all([
+                    db.collection(`users/${user.uid}/items`).get(),
+                    db.collection(`users/${user.uid}/sales`).get()
+                ]);
+
+                // Create a map to store monthly data
+                const monthlyData = new Map();
+
+                // Process items
+                itemsSnapshot.forEach(doc => {
+                    const item = doc.data();
+                    const date = item.createdAt.toDate();
+                    const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+                    
+                    if (!monthlyData.has(monthKey)) {
+                        monthlyData.set(monthKey, {
+                            month: date.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                            totalItemValue: 0,
+                            numberOfSales: 0,
+                            totalSoldValue: 0,
+                            totalProfit: 0,
+                            daysWithSales: new Set(),
+                            salesByDay: {}
+                        });
+                    }
+                    
+                    const monthData = monthlyData.get(monthKey);
+                    monthData.totalItemValue += item.remaining * item.wholesalePrice;
+                });
+
+                // Process sales
+                salesSnapshot.forEach(doc => {
+                    const sale = doc.data();
+                    const date = sale.createdAt.toDate();
+                    const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+                    const dayKey = date.toISOString().split('T')[0];
+                    
+                    if (!monthlyData.has(monthKey)) {
+                        monthlyData.set(monthKey, {
+                            month: date.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                            totalItemValue: 0,
+                            numberOfSales: 0,
+                            totalSoldValue: 0,
+                            totalProfit: 0,
+                            daysWithSales: new Set(),
+                            salesByDay: {}
+                        });
+                    }
+                    
+                    const monthData = monthlyData.get(monthKey);
+                    monthData.numberOfSales += sale.quantity;
+                    monthData.totalSoldValue += sale.salePrice * sale.quantity;
+                    monthData.totalProfit += sale.profit;
+                    monthData.daysWithSales.add(dayKey);
+                    
+                    if (!monthData.salesByDay[dayKey]) {
+                        monthData.salesByDay[dayKey] = { sales: 0, profit: 0 };
+                    }
+                    monthData.salesByDay[dayKey].sales += sale.salePrice * sale.quantity;
+                    monthData.salesByDay[dayKey].profit += sale.profit;
+                });
+
+                // Calculate averages and expected profit
+                const today = new Date();
+                const currentMonthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
+                
+                monthlyData.forEach((data, monthKey) => {
+                    const daysInMonth = new Date(parseInt(monthKey.split('-')[1]), parseInt(monthKey.split('-')[0]), 0).getDate();
+                    const daysPassed = today.getMonth() + 1 === parseInt(monthKey.split('-')[1]) ? today.getDate() : daysInMonth;
+                    const daysWithSales = data.daysWithSales.size;
+                    
+                    data.avgDailySale = daysWithSales > 0 ? data.totalSoldValue / daysWithSales : 0;
+                    data.avgDailyProfit = daysWithSales > 0 ? data.totalProfit / daysWithSales : 0;
+                    
+                    // Calculate expected profit for current month
+                    if (monthKey === currentMonthKey) {
+                        const remainingDays = daysInMonth - daysPassed;
+                        data.expectedProfit = data.totalProfit + (data.avgDailyProfit * remainingDays);
+                    } else {
+                        data.expectedProfit = data.totalProfit;
+                    }
+                });
+
+                // Sort months in descending order
+                const sortedMonths = Array.from(monthlyData.values()).sort((a, b) => {
+                    return new Date(b.month) - new Date(a.month);
+                });
+
+                // Update the table
+                const tbody = document.querySelector('#monthly-summary-table tbody');
+                tbody.innerHTML = '';
+                
+                sortedMonths.forEach(data => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${data.month}</td>
+                        <td>$${data.totalItemValue.toFixed(2)}</td>
+                        <td>${data.numberOfSales}</td>
+                        <td>$${data.totalSoldValue.toFixed(2)}</td>
+                        <td>$${data.totalProfit.toFixed(2)}</td>
+                        <td>$${data.avgDailySale.toFixed(2)}</td>
+                        <td>$${data.avgDailyProfit.toFixed(2)}</td>
+                        <td>$${data.expectedProfit.toFixed(2)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+            } catch (error) {
+                console.error("Error calculating monthly summary:", error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventory Management System</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --primary-color: #4285F4;
@@ -713,20 +711,10 @@
     </div>
 
     <script>
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyC8bjpWrh95tG0jHqm5WRICZGHAfsgUJIo",
-            authDomain: "crud-app-bb78a.firebaseapp.com",
-            projectId: "crud-app-bb78a",
-            storageBucket: "crud-app-bb78a.firebasestorage.app",
-            messagingSenderId: "934806638001",
-            appId: "1:934806638001:web:c4cd7c7f924f2537810190"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+        // Supabase configuration
+        const supabaseUrl = 'https://aqsxbbvbbfhmmirjgaie.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxc3hiYnZiYmZobW1pcmpnYWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2NjI5NjksImV4cCI6MjA2MTIzODk2OX0.Vr0DE9XF7OSL_EDKRtn1rIK5OFtbX409IrtiLmsq5nE'
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey)
 
         // DOM Elements
         const signInBtn = document.getElementById('sign-in-btn');
@@ -739,15 +727,11 @@
         // Tab switching
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                // Remove active class from all tabs and contents
                 tabs.forEach(t => t.classList.remove('active'));
                 tabContents.forEach(c => c.classList.remove('active'));
-                
-                // Add active class to clicked tab and corresponding content
                 tab.classList.add('active');
                 document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
                 
-                // Refresh data if needed
                 if (tab.dataset.tab === 'summary') {
                     updateSummary();
                     calculateMonthlySummary();
@@ -756,9 +740,9 @@
         });
 
         // Auth State Listener
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                userInfoDiv.innerHTML = `<span data-translate="welcome">Welcome</span>, ${user.displayName}!`;
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                userInfoDiv.innerHTML = `<span data-translate="welcome">Welcome</span>, ${session.user.user_metadata.full_name}!`;
                 appContent.style.display = 'block';
                 signInBtn.style.display = 'none';
                 signOutBtn.style.display = 'inline-block';
@@ -775,25 +759,29 @@
         });
 
         // Sign In Function
-        signInBtn.onclick = () => {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            provider.addScope('profile');
-            provider.addScope('email');
-            
-            auth.signInWithPopup(provider)
-                .catch(error => {
-                    console.error("Sign-in error:", error);
-                    alert("Error signing in: " + error.message);
-                });
+        signInBtn.onclick = async () => {
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin
+                }
+            });
+            if (error) {
+                console.error("Sign-in error:", error);
+                alert("Error signing in: " + error.message);
+            }
         };
 
         // Sign Out Function
-        signOutBtn.onclick = () => {
-            auth.signOut();
+        signOutBtn.onclick = async () => {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                console.error("Sign-out error:", error);
+            }
         };
 
         // Add Item Function
-        function addItem() {
+        async function addItem() {
             const name = document.getElementById('itemName').value.trim();
             const wholesalePrice = parseFloat(document.getElementById('wholesalePrice').value);
             const retailPrice = parseFloat(document.getElementById('retailPrice').value);
@@ -804,143 +792,107 @@
                 return;
             }
 
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            db.collection(`users/${user.uid}/items`).add({
-                name: name,
-                wholesalePrice: wholesalePrice,
-                retailPrice: retailPrice,
-                quantity: quantity,
-                remaining: quantity,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            })
-            .then(() => {
-                document.getElementById('itemName').value = '';
-                document.getElementById('wholesalePrice').value = '';
-                document.getElementById('retailPrice').value = '';
-                document.getElementById('itemQuantity').value = '';
-                document.getElementById('item-total-display').style.display = 'none';
-            })
-            .catch(error => {
+            const { data, error } = await supabase
+                .from('items')
+                .insert([{
+                    name: name,
+                    wholesale_price: wholesalePrice,
+                    retail_price: retailPrice,
+                    quantity: quantity,
+                    remaining: quantity,
+                    user_id: user.id,
+                    created_at: new Date()
+                }]);
+
+            if (error) {
                 console.error("Error adding item:", error);
                 alert("Error adding item: " + error.message);
-            });
+                return;
+            }
+
+            document.getElementById('itemName').value = '';
+            document.getElementById('wholesalePrice').value = '';
+            document.getElementById('retailPrice').value = '';
+            document.getElementById('itemQuantity').value = '';
+            document.getElementById('item-total-display').style.display = 'none';
         }
 
         // Load Items Function
-        function loadItems() {
-            const user = auth.currentUser;
+        async function loadItems() {
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            db.collection(`users/${user.uid}/items`)
-                .orderBy('createdAt', 'desc')
-                .onSnapshot(snapshot => {
-                    const itemsList = document.getElementById('items-list');
-                    itemsList.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const item = doc.data();
-                        const itemCard = document.createElement('div');
-                        itemCard.className = 'item-card';
-                        itemCard.innerHTML = `
-                            <div class="item-info">
-                                <div class="item-name">${item.name}</div>
-                                <div class="item-info-group">
-                                    <span class="item-label" data-translate="quantity">Quantity</span>
-                                    <span class="item-value">${item.quantity} Total, ${item.remaining} Remaining</span>
-                                </div>
-                                <div class="item-info-group">
-                                    <span class="item-label" data-translate="wholesalePrice">Wholesale Price</span>
-                                    <span class="item-value">$${item.wholesalePrice.toFixed(2)}</span>
-                                </div>
-                                <div class="item-info-group">
-                                    <span class="item-label" data-translate="retailPrice">Retail Price</span>
-                                    <span class="item-value">$${item.retailPrice.toFixed(2)}</span>
-                                </div>
-                                <div class="item-info-group">
-                                    <span class="item-label" data-translate="totalValue">Total Value</span>
-                                    <span class="item-value">$${(item.quantity * item.wholesalePrice).toFixed(2)}</span>
-                                </div>
-                                <div class="item-timestamp">
-                                    <span data-translate="added">Added</span>: ${new Date(item.createdAt.toDate()).toLocaleString()}
-                                </div>
-                            </div>
-                            <div class="item-actions">
-                                <button onclick="deleteItem('${doc.id}')" class="btn-danger" data-button="delete">Delete</button>
-                            </div>
-                        `;
-                        itemsList.appendChild(itemCard);
-                    });
-                    translatePage();
-                });
-        }
+            const { data: items, error } = await supabase
+                .from('items')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
 
-        // Search Items Function
-        function searchItems() {
-            const searchTerm = document.getElementById('searchItem').value.toLowerCase();
-            const user = auth.currentUser;
-            if (!user) return;
-
-            db.collection(`users/${user.uid}/items`)
-                .orderBy('name')
-                .onSnapshot(snapshot => {
-                    const searchResults = document.getElementById('search-results');
-                    searchResults.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const item = doc.data();
-                        if (item.name.toLowerCase().includes(searchTerm)) {
-                            const itemCard = document.createElement('div');
-                            itemCard.className = 'item-card';
-                            itemCard.innerHTML = `
-                                <div class="item-info">
-                                    <div class="item-name">${item.name}</div>
-                                    <div class="item-info-group">
-                                        <span class="item-label" data-translate="remaining">Remaining</span>
-                                        <span class="item-value">${item.remaining}</span>
-                                    </div>
-                                    <div class="item-info-group">
-                                        <span class="item-label" data-translate="wholesalePrice">Wholesale Price</span>
-                                        <span class="item-value">$${item.wholesalePrice.toFixed(2)}</span>
-                                    </div>
-                                    <div class="item-info-group">
-                                        <span class="item-label" data-translate="retailPrice">Retail Price</span>
-                                        <span class="item-value">$${item.retailPrice.toFixed(2)}</span>
-                                    </div>
-                                </div>
-                                <div class="item-actions">
-                                    <button onclick="selectItemForSale('${doc.id}', '${item.name}', ${item.wholesalePrice}, ${item.retailPrice}, ${item.remaining})" 
-                                            class="btn-primary" ${item.remaining <= 0 ? 'disabled' : ''} data-button="${item.remaining <= 0 ? 'outOfStock' : 'select'}">
-                                        ${item.remaining <= 0 ? 'Out of Stock' : 'Select'}
-                                    </button>
-                                </div>
-                            `;
-                            searchResults.appendChild(itemCard);
-                        }
-                    });
-                    translatePage();
-                });
-        }
-
-        // Select Item for Sale
-        function selectItemForSale(itemId, itemName, wholesalePrice, retailPrice, availableQuantity) {
-            if (availableQuantity <= 0) {
-                alert('This item is out of stock');
+            if (error) {
+                console.error("Error loading items:", error);
                 return;
             }
-            const saleForm = document.getElementById('sale-form');
-            saleForm.style.display = 'block';
-            saleForm.dataset.itemId = itemId;
-            saleForm.dataset.wholesalePrice = wholesalePrice;
-            saleForm.dataset.availableQuantity = availableQuantity;
-            document.getElementById('salePrice').value = retailPrice;
-            document.getElementById('saleQuantity').max = availableQuantity;
-            document.getElementById('saleQuantity').value = '';
-            document.getElementById('profit-display').style.display = 'none';
-            calculateProfit();
+
+            const itemsList = document.getElementById('items-list');
+            itemsList.innerHTML = '';
+            
+            items.forEach(item => {
+                const itemCard = document.createElement('div');
+                itemCard.className = 'item-card';
+                itemCard.innerHTML = `
+                    <div class="item-info">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-info-group">
+                            <span class="item-label" data-translate="quantity">Quantity</span>
+                            <span class="item-value">${item.quantity} Total, ${item.remaining} Remaining</span>
+                        </div>
+                        <div class="item-info-group">
+                            <span class="item-label" data-translate="wholesalePrice">Wholesale Price</span>
+                            <span class="item-value">$${item.wholesale_price.toFixed(2)}</span>
+                        </div>
+                        <div class="item-info-group">
+                            <span class="item-label" data-translate="retailPrice">Retail Price</span>
+                            <span class="item-value">$${item.retail_price.toFixed(2)}</span>
+                        </div>
+                        <div class="item-info-group">
+                            <span class="item-label" data-translate="totalValue">Total Value</span>
+                            <span class="item-value">$${(item.quantity * item.wholesale_price).toFixed(2)}</span>
+                        </div>
+                        <div class="item-timestamp">
+                            <span data-translate="added">Added</span>: ${new Date(item.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button onclick="deleteItem('${item.id}')" class="btn-danger" data-button="delete">Delete</button>
+                    </div>
+                `;
+                itemsList.appendChild(itemCard);
+            });
+            translatePage();
+        }
+
+        // Delete Item Function
+        async function deleteItem(itemId) {
+            if (!confirm('Are you sure you want to delete this item?')) {
+                return;
+            }
+
+            const { error } = await supabase
+                .from('items')
+                .delete()
+                .eq('id', itemId);
+
+            if (error) {
+                console.error("Error deleting item:", error);
+                alert("Error deleting item: " + error.message);
+            }
         }
 
         // Confirm Sale Function
-        function confirmSale() {
+        async function confirmSale() {
             const saleForm = document.getElementById('sale-form');
             const itemId = saleForm.dataset.itemId;
             const quantity = parseInt(document.getElementById('saleQuantity').value);
@@ -953,118 +905,110 @@
                 return;
             }
 
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
             const profit = (salePrice - wholesalePrice) * quantity;
 
-            // Start a batch write to update both the item quantity and create the sale record
-            const batch = db.batch();
-            
+            // Start a transaction
+            const { data: sale, error: saleError } = await supabase
+                .from('sales')
+                .insert([{
+                    item_id: itemId,
+                    quantity: quantity,
+                    sale_price: salePrice,
+                    wholesale_price: wholesalePrice,
+                    profit: profit,
+                    user_id: user.id,
+                    created_at: new Date()
+                }])
+                .select()
+                .single();
+
+            if (saleError) {
+                console.error("Error recording sale:", saleError);
+                alert("Error recording sale: " + saleError.message);
+                return;
+            }
+
             // Update item remaining quantity
-            const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
-            batch.update(itemRef, {
-                remaining: firebase.firestore.FieldValue.increment(-quantity)
-            });
+            const { error: updateError } = await supabase
+                .from('items')
+                .update({ remaining: availableQuantity - quantity })
+                .eq('id', itemId);
 
-            // Create sale record
-            const saleRef = db.collection(`users/${user.uid}/sales`).doc();
-            batch.set(saleRef, {
-                itemId: itemId,
-                quantity: quantity,
-                salePrice: salePrice,
-                wholesalePrice: wholesalePrice,
-                profit: profit,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            if (updateError) {
+                console.error("Error updating item quantity:", updateError);
+                alert("Error updating item quantity: " + updateError.message);
+                return;
+            }
 
-            batch.commit()
-                .then(() => {
-                    document.getElementById('saleQuantity').value = '';
-                    document.getElementById('salePrice').value = '';
-                    saleForm.style.display = 'none';
-                    loadSales();
-                    updateSummary();
-                })
-                .catch(error => {
-                    console.error("Error recording sale:", error);
-                    alert("Error recording sale: " + error.message);
-                });
+            document.getElementById('saleQuantity').value = '';
+            document.getElementById('salePrice').value = '';
+            saleForm.style.display = 'none';
+            loadSales();
+            updateSummary();
         }
 
         // Load Sales Function
         async function loadSales() {
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Clear the existing listener if it exists
-            if (window.salesListener) {
-                window.salesListener();
+            const { data: sales, error: salesError } = await supabase
+                .from('sales')
+                .select(`
+                    *,
+                    items:item_id(name)
+                `)
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (salesError) {
+                console.error("Error loading sales:", salesError);
+                return;
             }
 
-            // Create a new listener
-            window.salesListener = db.collection(`users/${user.uid}/sales`)
-                .orderBy('createdAt', 'desc')
-                .onSnapshot(async snapshot => {
-                    const salesList = document.getElementById('sales-list');
-                    salesList.innerHTML = '';
-                    
-                    // Create a map to store item names
-                    const itemNames = new Map();
-                    
-                    // First, get all unique item IDs from sales
-                    const itemIds = new Set();
-                    snapshot.forEach(doc => {
-                        const sale = doc.data();
-                        itemIds.add(sale.itemId);
-                    });
+            const salesList = document.getElementById('sales-list');
+            salesList.innerHTML = '';
 
-                    // Fetch all items to get their names
-                    const itemsSnapshot = await db.collection(`users/${user.uid}/items`).get();
-                    itemsSnapshot.forEach(doc => {
-                        itemNames.set(doc.id, doc.data().name);
-                    });
-
-                    // Now create the sales list with item names
-                    snapshot.forEach(doc => {
-                        const sale = doc.data();
-                        const profitPercentage = ((sale.salePrice - sale.wholesalePrice) / sale.wholesalePrice) * 100;
-                        const itemName = itemNames.get(sale.itemId) || 'Unknown Item';
-                        
-                        const saleCard = document.createElement('div');
-                        saleCard.className = 'sale-card';
-                        saleCard.innerHTML = `
-                            <div class="sale-info">
-                                <div class="item-name">${itemName}</div>
-                                <div class="item-info-group">
-                                    <span class="sale-label" data-translate="quantity">Quantity</span>
-                                    <span class="sale-value">${sale.quantity}</span>
-                                </div>
-                                <div class="item-info-group">
-                                    <span class="sale-label" data-translate="salePrice">Sale Price</span>
-                                    <span class="sale-value">$${sale.salePrice.toFixed(2)}</span>
-                                </div>
-                                <div class="item-info-group">
-                                    <span class="sale-label" data-translate="profit">Profit</span>
-                                    <span class="sale-value">$${sale.profit.toFixed(2)}</span>
-                                </div>
-                                <div class="item-info-group">
-                                    <span class="sale-label" data-translate="profitPercentage">Profit Percentage</span>
-                                    <span class="sale-value">${profitPercentage.toFixed(2)}%</span>
-                                </div>
-                                <div class="sale-timestamp">
-                                    <span data-translate="sold">Sold</span>: ${new Date(sale.createdAt.toDate()).toLocaleString()}
-                                </div>
-                            </div>
-                            <div class="sale-actions">
-                                <button onclick="editSale('${doc.id}', '${sale.itemId}', ${sale.quantity}, ${sale.salePrice})" class="btn-primary" data-button="edit">Edit</button>
-                                <button onclick="deleteSale('${doc.id}', '${sale.itemId}', ${sale.quantity})" class="btn-danger" data-button="delete">Delete</button>
-                            </div>
-                        `;
-                        salesList.appendChild(saleCard);
-                    });
-                    translatePage();
-                });
+            sales.forEach(sale => {
+                const profitPercentage = ((sale.sale_price - sale.wholesale_price) / sale.wholesale_price) * 100;
+                const itemName = sale.items?.name || 'Unknown Item';
+                
+                const saleCard = document.createElement('div');
+                saleCard.className = 'sale-card';
+                saleCard.innerHTML = `
+                    <div class="sale-info">
+                        <div class="item-name">${itemName}</div>
+                        <div class="item-info-group">
+                            <span class="sale-label" data-translate="quantity">Quantity</span>
+                            <span class="sale-value">${sale.quantity}</span>
+                        </div>
+                        <div class="item-info-group">
+                            <span class="sale-label" data-translate="salePrice">Sale Price</span>
+                            <span class="sale-value">$${sale.sale_price.toFixed(2)}</span>
+                        </div>
+                        <div class="item-info-group">
+                            <span class="sale-label" data-translate="profit">Profit</span>
+                            <span class="sale-value">$${sale.profit.toFixed(2)}</span>
+                        </div>
+                        <div class="item-info-group">
+                            <span class="sale-label" data-translate="profitPercentage">Profit Percentage</span>
+                            <span class="sale-value">${profitPercentage.toFixed(2)}%</span>
+                        </div>
+                        <div class="sale-timestamp">
+                            <span data-translate="sold">Sold</span>: ${new Date(sale.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="sale-actions">
+                        <button onclick="editSale('${sale.id}', '${sale.item_id}', ${sale.quantity}, ${sale.sale_price})" class="btn-primary" data-button="edit">Edit</button>
+                        <button onclick="deleteSale('${sale.id}', '${sale.item_id}', ${sale.quantity})" class="btn-danger" data-button="delete">Delete</button>
+                    </div>
+                `;
+                salesList.appendChild(saleCard);
+            });
+            translatePage();
         }
 
         // Edit Sale Function
@@ -1223,20 +1167,6 @@
                     document.getElementById('inventory-wholesale').textContent = '$0.00';
                     document.getElementById('inventory-retail').textContent = '$0.00';
                 });
-        }
-
-        // Delete Item Function
-        function deleteItem(itemId) {
-            const user = auth.currentUser;
-            if (!user) return;
-
-            if (confirm('Are you sure you want to delete this item?')) {
-                db.collection(`users/${user.uid}/items`).doc(itemId).delete()
-                    .catch(error => {
-                        console.error("Error deleting item:", error);
-                        alert("Error deleting item: " + error.message);
-                    });
-            }
         }
 
         // Load Adjustments Function

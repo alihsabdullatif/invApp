@@ -6,10 +6,13 @@
     <title>Inventory Management System</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // Initialize Supabase
-        const supabaseUrl = 'https://aqsxbbvbbfhmmirjgaie.supabase.co'
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxc3hiYnZiYmZobW1pcmpnYWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2NjI5NjksImV4cCI6MjA2MTIzODk2OX0.Vr0DE9XF7OSL_EDKRtn1rIK5OFtbX409IrtiLmsq5nE'
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey)
+        // Wait for the Supabase script to load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Initialize Supabase
+            const supabaseUrl = 'https://aqsxbbvbbfhmmirjgaie.supabase.co'
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxc3hiYnZiYmZobW1pcmpnYWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2NjI5NjksImV4cCI6MjA2MTIzODk2OX0.Vr0DE9XF7OSL_EDKRtn1rIK5OFtbX409IrtiLmsq5nE'
+            window.supabase = supabase.createClient(supabaseUrl, supabaseKey)
+        });
     </script>
     <style>
         :root {
@@ -727,7 +730,7 @@
 
         // Check if user is already signed in on page load
         async function checkUser() {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await window.supabase.auth.getUser();
             if (user) {
                 userInfoDiv.innerHTML = `<span data-translate="welcome">Welcome</span>, ${user.user_metadata.full_name}!`;
                 appContent.style.display = 'block';
@@ -752,7 +755,7 @@
         });
 
         // Auth State Listener
-        supabase.auth.onAuthStateChange((event, session) => {
+        window.supabase.auth.onAuthStateChange((event, session) => {
             if (session) {
                 userInfoDiv.innerHTML = `<span data-translate="welcome">Welcome</span>, ${session.user.user_metadata.full_name}!`;
                 appContent.style.display = 'block';
@@ -787,7 +790,7 @@
 
         // Sign In Function
         signInBtn.onclick = async () => {
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            const { data, error } = await window.supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: window.location.origin
@@ -801,7 +804,7 @@
 
         // Sign Out Function
         signOutBtn.onclick = async () => {
-            const { error } = await supabase.auth.signOut();
+            const { error } = await window.supabase.auth.signOut();
             if (error) {
                 console.error("Sign-out error:", error);
             }
@@ -819,10 +822,10 @@
                 return;
             }
 
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await window.supabase.auth.getUser();
             if (!user) return;
 
-            const { data, error } = await supabase
+            const { data, error } = await window.supabase
                 .from('items')
                 .insert([{
                     name: name,
@@ -849,10 +852,10 @@
 
         // Load Items Function
         async function loadItems() {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await window.supabase.auth.getUser();
             if (!user) return;
 
-            const { data: items, error } = await supabase
+            const { data: items, error } = await window.supabase
                 .from('items')
                 .select('*')
                 .eq('user_id', user.id)
@@ -907,7 +910,7 @@
                 return;
             }
 
-            const { error } = await supabase
+            const { error } = await window.supabase
                 .from('items')
                 .delete()
                 .eq('id', itemId);
@@ -932,13 +935,13 @@
                 return;
             }
 
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await window.supabase.auth.getUser();
             if (!user) return;
 
             const profit = (salePrice - wholesalePrice) * quantity;
 
             // Start a transaction
-            const { data: sale, error: saleError } = await supabase
+            const { data: sale, error: saleError } = await window.supabase
                 .from('sales')
                 .insert([{
                     item_id: itemId,
@@ -959,7 +962,7 @@
             }
 
             // Update item remaining quantity
-            const { error: updateError } = await supabase
+            const { error: updateError } = await window.supabase
                 .from('items')
                 .update({ remaining: availableQuantity - quantity })
                 .eq('id', itemId);
@@ -979,10 +982,10 @@
 
         // Load Sales Function
         async function loadSales() {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await window.supabase.auth.getUser();
             if (!user) return;
 
-            const { data: sales, error: salesError } = await supabase
+            const { data: sales, error: salesError } = await window.supabase
                 .from('sales')
                 .select(`
                     *,

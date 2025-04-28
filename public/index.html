@@ -724,19 +724,30 @@
         const tabs = document.querySelectorAll('.tab');
         const tabContents = document.querySelectorAll('.tab-content');
 
-        // Tab switching
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                tabs.forEach(t => t.classList.remove('active'));
-                tabContents.forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
-                
-                if (tab.dataset.tab === 'summary') {
-                    updateSummary();
-                    calculateMonthlySummary();
-                }
-            });
+        // Check if user is already signed in on page load
+        async function checkUser() {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                userInfoDiv.innerHTML = `<span data-translate="welcome">Welcome</span>, ${user.user_metadata.full_name}!`;
+                appContent.style.display = 'block';
+                signInBtn.style.display = 'none';
+                signOutBtn.style.display = 'inline-block';
+                loadItems();
+                loadSales();
+                loadAdjustments();
+                translatePage();
+            }
+        }
+
+        // Call checkUser when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            checkUser();
+            const savedLanguage = localStorage.getItem('language');
+            if (savedLanguage) {
+                currentLanguage = savedLanguage;
+                document.documentElement.dir = savedLanguage === 'ar' ? 'rtl' : 'ltr';
+            }
+            translatePage();
         });
 
         // Auth State Listener
@@ -756,6 +767,21 @@
                 signInBtn.style.display = 'inline-block';
                 signOutBtn.style.display = 'none';
             }
+        });
+
+        // Tab switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+                
+                if (tab.dataset.tab === 'summary') {
+                    updateSummary();
+                    calculateMonthlySummary();
+                }
+            });
         });
 
         // Sign In Function
@@ -1588,16 +1614,6 @@
                 languageSelect.value = currentLanguage;
             }
         }
-
-        // Initialize language on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedLanguage = localStorage.getItem('language');
-            if (savedLanguage) {
-                currentLanguage = savedLanguage;
-                document.documentElement.dir = savedLanguage === 'ar' ? 'rtl' : 'ltr';
-            }
-            translatePage();
-        });
 
         // Add new function to calculate monthly summary
         async function calculateMonthlySummary() {

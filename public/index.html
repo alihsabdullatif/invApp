@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventory Management System</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Initialize Supabase
+        const supabaseUrl = 'https://aqsxbbvbbfhmmirjgaie.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxc3hiYnZiYmZobW1pcmpnYWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2NjI5NjksImV4cCI6MjA2MTIzODk2OX0.Vr0DE9XF7OSL_EDKRtn1rIK5OFtbX409IrtiLmsq5nE'
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey)
+    </script>
     <style>
         :root {
             --primary-color: #4285F4;
@@ -711,11 +717,6 @@
     </div>
 
     <script>
-        // Supabase configuration
-        const supabaseUrl = 'https://aqsxbbvbbfhmmirjgaie.supabase.co'
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxc3hiYnZiYmZobW1pcmpnYWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2NjI5NjksImV4cCI6MjA2MTIzODk2OX0.Vr0DE9XF7OSL_EDKRtn1rIK5OFtbX409IrtiLmsq5nE'
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey)
-
         // DOM Elements
         const signInBtn = document.getElementById('sign-in-btn');
         const signOutBtn = document.getElementById('sign-out-btn');

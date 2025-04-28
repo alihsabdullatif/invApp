@@ -1165,232 +1165,269 @@
         }
 
         // Edit Sale Function
-        function editSale(saleId, itemId, currentQuantity, currentPrice) {
-            const user = auth.currentUser;
+        async function editSale(saleId, itemId, currentQuantity, currentPrice) {
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
             // Get current item details
-            db.collection(`users/${user.uid}/items`).doc(itemId).get()
-                .then(itemDoc => {
-                    if (!itemDoc.exists) {
-                        alert('Original item no longer exists. Cannot edit this sale.');
-                        return;
-                    }
+            const { data: item, error: itemError } = await supabase
+                .from('items')
+                .select('*')
+                .eq('id', itemId)
+                .single();
 
-                    const item = itemDoc.data();
-                    const newQuantity = parseInt(prompt('Enter new quantity:', currentQuantity));
-                    const newPrice = parseFloat(prompt('Enter new sale price:', currentPrice));
+            if (itemError || !item) {
+                alert('Original item no longer exists. Cannot edit this sale.');
+                return;
+            }
 
-                    if (isNaN(newQuantity) || isNaN(newPrice) || newQuantity < 1) {
-                        alert('Please enter valid quantity and price');
-                        return;
-                    }
+            const newQuantity = parseInt(prompt('Enter new quantity:', currentQuantity));
+            const newPrice = parseFloat(prompt('Enter new sale price:', currentPrice));
 
-                    // Calculate the difference in quantity
-                    const quantityDiff = newQuantity - currentQuantity;
-                    
-                    // Check if we have enough stock for the increase
-                    if (quantityDiff > 0 && item.quantity < quantityDiff) {
-                        alert(`Not enough stock available. Only ${item.quantity} items in stock.`);
-                        return;
-                    }
+            if (isNaN(newQuantity) || isNaN(newPrice) || newQuantity < 1) {
+                alert('Please enter valid quantity and price');
+                return;
+            }
 
-                    // Calculate new profit
-                    const newProfit = (newPrice - item.wholesalePrice) * newQuantity;
+            // Calculate the difference in quantity
+            const quantityDiff = newQuantity - currentQuantity;
+            
+            // Check if we have enough stock for the increase
+            if (quantityDiff > 0 && item.remaining < quantityDiff) {
+                alert(`Not enough stock available. Only ${item.remaining} items in stock.`);
+                return;
+            }
 
-                    // Start a batch write to update both the item quantity and sale record
-                    const batch = db.batch();
-                    
-                    // Update item quantity
-                    const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
-                    batch.update(itemRef, {
-                        quantity: firebase.firestore.FieldValue.increment(-quantityDiff)
-                    });
+            // Calculate new profit
+            const newProfit = (newPrice - item.wholesale_price) * newQuantity;
 
-                    // Update sale record
-                    const saleRef = db.collection(`users/${user.uid}/sales`).doc(saleId);
-                    batch.update(saleRef, {
-                        quantity: newQuantity,
-                        salePrice: newPrice,
-                        profit: newProfit
-                    });
-
-                    return batch.commit();
+            // Start a transaction
+            const { error: saleError } = await supabase
+                .from('sales')
+                .update({
+                    quantity: newQuantity,
+                    sale_price: newPrice,
+                    profit: newProfit
                 })
-                .then(() => {
-                    loadSales();
-                    loadItems();
-                    updateSummary();
-                })
-                .catch(error => {
-                    console.error("Error updating sale:", error);
-                    alert("Error updating sale: " + error.message);
-                });
+                .eq('id', saleId);
+
+            if (saleError) {
+                console.error("Error updating sale:", saleError);
+                alert("Error updating sale: " + saleError.message);
+                return;
+            }
+
+            // Update item remaining quantity
+            const { error: updateError } = await supabase
+                .from('items')
+                .update({ remaining: item.remaining - quantityDiff })
+                .eq('id', itemId);
+
+            if (updateError) {
+                console.error("Error updating item quantity:", updateError);
+                alert("Error updating item quantity: " + updateError.message);
+                return;
+            }
+
+            loadSales();
+            loadItems();
+            updateSummary();
         }
 
         // Delete Sale Function
-        function deleteSale(saleId, itemId, quantity) {
+        async function deleteSale(saleId, itemId, quantity) {
             if (!confirm('Are you sure you want to delete this sale?')) {
                 return;
             }
 
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
             // First check if the item still exists
-            db.collection(`users/${user.uid}/items`).doc(itemId).get()
-                .then(itemDoc => {
-                    const batch = db.batch();
-                    
-                    // Only update item remaining quantity if the item still exists
-                    if (itemDoc.exists) {
-                        const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
-                        batch.update(itemRef, {
-                            remaining: firebase.firestore.FieldValue.increment(quantity)
-                        });
-                    } else {
-                        console.log('Original item no longer exists, skipping quantity restoration');
-                    }
+            const { data: item, error: itemError } = await supabase
+                .from('items')
+                .select('*')
+                .eq('id', itemId)
+                .single();
 
-                    // Delete sale record
-                    const saleRef = db.collection(`users/${user.uid}/sales`).doc(saleId);
-                    batch.delete(saleRef);
+            if (!itemError && item) {
+                // Update item remaining quantity
+                const { error: updateError } = await supabase
+                    .from('items')
+                    .update({ remaining: item.remaining + quantity })
+                    .eq('id', itemId);
 
-                    return batch.commit();
-                })
-                .then(() => {
-                    loadSales();
-                    loadItems();
-                    updateSummary();
-                })
-                .catch(error => {
-                    console.error("Error deleting sale:", error);
-                    alert("Error deleting sale: " + error.message);
-                });
+                if (updateError) {
+                    console.error("Error updating item quantity:", updateError);
+                    alert("Error updating item quantity: " + updateError.message);
+                    return;
+                }
+            } else {
+                console.log('Original item no longer exists, skipping quantity restoration');
+            }
+
+            // Delete sale record
+            const { error: deleteError } = await supabase
+                .from('sales')
+                .delete()
+                .eq('id', saleId);
+
+            if (deleteError) {
+                console.error("Error deleting sale:", deleteError);
+                alert("Error deleting sale: " + deleteError.message);
+                return;
+            }
+
+            loadSales();
+            loadItems();
+            updateSummary();
         }
 
         // Update Summary Function
-        function updateSummary() {
-            const user = auth.currentUser;
+        async function updateSummary() {
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Calculate total sales and profit
-            db.collection(`users/${user.uid}/sales`).get()
-                .then(salesSnapshot => {
-                    let totalSales = 0;
-                    let totalProfit = 0;
+            try {
+                // Calculate total sales and profit
+                const { data: sales, error: salesError } = await supabase
+                    .from('sales')
+                    .select('*')
+                    .eq('user_id', user.id);
 
-                    if (!salesSnapshot.empty) {
-                        salesSnapshot.forEach(doc => {
-                            const sale = doc.data();
-                            totalSales += (sale.salePrice || 0) * (sale.quantity || 0);
-                            totalProfit += sale.profit || 0;
-                        });
-                    }
+                if (salesError) {
+                    throw salesError;
+                }
 
-                    document.getElementById('total-sales').textContent = `$${totalSales.toFixed(2)}`;
-                    document.getElementById('total-profit').textContent = `$${totalProfit.toFixed(2)}`;
-                })
-                .catch(error => {
-                    console.error("Error calculating sales summary:", error);
-                    document.getElementById('total-sales').textContent = '$0.00';
-                    document.getElementById('total-profit').textContent = '$0.00';
-                });
+                let totalSales = 0;
+                let totalProfit = 0;
 
-            // Calculate inventory values using remaining stock
-            db.collection(`users/${user.uid}/items`).get()
-                .then(itemsSnapshot => {
-                    let wholesaleValue = 0;
-                    let retailValue = 0;
+                if (sales) {
+                    sales.forEach(sale => {
+                        totalSales += (sale.sale_price || 0) * (sale.quantity || 0);
+                        totalProfit += sale.profit || 0;
+                    });
+                }
 
-                    if (!itemsSnapshot.empty) {
-                        itemsSnapshot.forEach(doc => {
-                            const item = doc.data();
-                            const remaining = item.remaining || 0;
-                            wholesaleValue += (item.wholesalePrice || 0) * remaining;
-                            retailValue += (item.retailPrice || 0) * remaining;
-                        });
-                    }
+                document.getElementById('total-sales').textContent = `$${totalSales.toFixed(2)}`;
+                document.getElementById('total-profit').textContent = `$${totalProfit.toFixed(2)}`;
 
-                    document.getElementById('inventory-wholesale').textContent = `$${wholesaleValue.toFixed(2)}`;
-                    document.getElementById('inventory-retail').textContent = `$${retailValue.toFixed(2)}`;
-                })
-                .catch(error => {
-                    console.error("Error calculating inventory values:", error);
-                    document.getElementById('inventory-wholesale').textContent = '$0.00';
-                    document.getElementById('inventory-retail').textContent = '$0.00';
-                });
+                // Calculate inventory values using remaining stock
+                const { data: items, error: itemsError } = await supabase
+                    .from('items')
+                    .select('*')
+                    .eq('user_id', user.id);
+
+                if (itemsError) {
+                    throw itemsError;
+                }
+
+                let wholesaleValue = 0;
+                let retailValue = 0;
+
+                if (items) {
+                    items.forEach(item => {
+                        const remaining = item.remaining || 0;
+                        wholesaleValue += (item.wholesale_price || 0) * remaining;
+                        retailValue += (item.retail_price || 0) * remaining;
+                    });
+                }
+
+                document.getElementById('inventory-wholesale').textContent = `$${wholesaleValue.toFixed(2)}`;
+                document.getElementById('inventory-retail').textContent = `$${retailValue.toFixed(2)}`;
+
+            } catch (error) {
+                console.error("Error calculating summary:", error);
+                document.getElementById('total-sales').textContent = '$0.00';
+                document.getElementById('total-profit').textContent = '$0.00';
+                document.getElementById('inventory-wholesale').textContent = '$0.00';
+                document.getElementById('inventory-retail').textContent = '$0.00';
+            }
         }
 
         // Load Adjustments Function
-        function loadAdjustments() {
-            const user = auth.currentUser;
+        async function loadAdjustments() {
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            db.collection(`users/${user.uid}/adjustments`)
-                .orderBy('createdAt', 'desc')
-                .onSnapshot(snapshot => {
-                    const adjustmentsList = document.getElementById('adjustments-list');
-                    adjustmentsList.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const adjustment = doc.data();
-                        const adjustmentCard = document.createElement('div');
-                        adjustmentCard.className = 'adjustment-card';
-                        adjustmentCard.innerHTML = `
-                            <div class="adjustment-info">
-                                <div class="item-name">${adjustment.itemName}</div>
-                                <div class="item-info-group">
-                                    <span class="adjustment-label" data-translate="quantityDifference">Quantity Difference</span>
-                                    <span class="adjustment-value">${adjustment.quantity > 0 ? '+' : ''}${adjustment.quantity}</span>
-                                </div>
-                                <div class="item-info-group">
-                                    <span class="adjustment-label" data-translate="reason">Reason</span>
-                                    <span class="adjustment-value">${adjustment.reason}</span>
-                                </div>
-                                <div class="adjustment-timestamp">
-                                    <span data-translate="adjusted">Adjusted</span>: ${new Date(adjustment.createdAt.toDate()).toLocaleString()}
-                                </div>
-                            </div>
-                            <div class="adjustment-actions">
-                                <button onclick="deleteAdjustment('${doc.id}', '${adjustment.itemId}', ${adjustment.quantity})" class="btn-danger" data-button="delete">Delete</button>
-                            </div>
-                        `;
-                        adjustmentsList.appendChild(adjustmentCard);
-                    });
-                    translatePage();
-                });
+            const { data: adjustments, error } = await supabase
+                .from('adjustments')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error("Error loading adjustments:", error);
+                return;
+            }
+
+            const adjustmentsList = document.getElementById('adjustments-list');
+            adjustmentsList.innerHTML = '';
+
+            adjustments.forEach(adjustment => {
+                const adjustmentCard = document.createElement('div');
+                adjustmentCard.className = 'adjustment-card';
+                adjustmentCard.innerHTML = `
+                    <div class="adjustment-info">
+                        <div class="item-name">${adjustment.item_name}</div>
+                        <div class="item-info-group">
+                            <span class="adjustment-label" data-translate="quantityDifference">Quantity Difference</span>
+                            <span class="adjustment-value">${adjustment.quantity > 0 ? '+' : ''}${adjustment.quantity}</span>
+                        </div>
+                        <div class="item-info-group">
+                            <span class="adjustment-label" data-translate="reason">Reason</span>
+                            <span class="adjustment-value">${adjustment.reason}</span>
+                        </div>
+                        <div class="adjustment-timestamp">
+                            <span data-translate="adjusted">Adjusted</span>: ${new Date(adjustment.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="adjustment-actions">
+                        <button onclick="deleteAdjustment('${adjustment.id}', '${adjustment.item_id}', ${adjustment.quantity})" class="btn-danger" data-button="delete">Delete</button>
+                    </div>
+                `;
+                adjustmentsList.appendChild(adjustmentCard);
+            });
+            translatePage();
         }
 
         // Search Items for Adjustment
-        function searchAdjustmentItems() {
+        async function searchAdjustmentItems() {
             const searchTerm = document.getElementById('searchAdjustmentItem').value.toLowerCase();
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            db.collection(`users/${user.uid}/items`)
-                .orderBy('name')
-                .onSnapshot(snapshot => {
-                    const searchResults = document.getElementById('adjustment-search-results');
-                    searchResults.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const item = doc.data();
-                        if (item.name.toLowerCase().includes(searchTerm)) {
-                            const itemCard = document.createElement('div');
-                            itemCard.className = 'item-card';
-                            itemCard.innerHTML = `
-                                <div class="item-info">
-                                    <strong>${item.name}</strong>
-                                    <p data-translate="currentQuantity">Current Quantity</p>: ${item.quantity}
-                                </div>
-                                <div class="item-actions">
-                                    <button onclick="selectItemForAdjustment('${doc.id}', '${item.name}', ${item.quantity})" class="btn-primary" data-button="select">Select</button>
-                                </div>
-                            `;
-                            searchResults.appendChild(itemCard);
-                        }
-                    });
-                    translatePage();
-                });
+            const { data: items, error } = await supabase
+                .from('items')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('name');
+
+            if (error) {
+                console.error("Error searching items:", error);
+                return;
+            }
+
+            const searchResults = document.getElementById('adjustment-search-results');
+            searchResults.innerHTML = '';
+
+            items.forEach(item => {
+                if (item.name.toLowerCase().includes(searchTerm)) {
+                    const itemCard = document.createElement('div');
+                    itemCard.className = 'item-card';
+                    itemCard.innerHTML = `
+                        <div class="item-info">
+                            <strong>${item.name}</strong>
+                            <p data-translate="currentQuantity">Current Quantity</p>: ${item.remaining}
+                        </div>
+                        <div class="item-actions">
+                            <button onclick="selectItemForAdjustment('${item.id}', '${item.name}', ${item.remaining})" class="btn-primary" data-button="select">Select</button>
+                        </div>
+                    `;
+                    searchResults.appendChild(itemCard);
+                }
+            });
+            translatePage();
         }
 
         // Select Item for Adjustment
@@ -1403,7 +1440,7 @@
         }
 
         // Confirm Adjustment Function
-        function confirmAdjustment() {
+        async function confirmAdjustment() {
             const adjustmentForm = document.getElementById('adjustment-form');
             const itemId = adjustmentForm.dataset.itemId;
             const itemName = adjustmentForm.dataset.itemName;
@@ -1422,78 +1459,99 @@
                 return;
             }
 
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Start a batch write to update both the item quantity and create the adjustment record
-            const batch = db.batch();
-            
             // Update item quantity
-            const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
-            batch.update(itemRef, {
-                quantity: firebase.firestore.FieldValue.increment(quantity)
-            });
+            const { error: updateError } = await supabase
+                .from('items')
+                .update({ remaining: currentQuantity + quantity })
+                .eq('id', itemId);
+
+            if (updateError) {
+                console.error("Error updating item quantity:", updateError);
+                alert("Error updating item quantity: " + updateError.message);
+                return;
+            }
 
             // Create adjustment record
-            const adjustmentRef = db.collection(`users/${user.uid}/adjustments`).doc();
-            batch.set(adjustmentRef, {
-                itemId: itemId,
-                itemName: itemName,
-                quantity: quantity,
-                reason: reason,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            const { error: insertError } = await supabase
+                .from('adjustments')
+                .insert([{
+                    item_id: itemId,
+                    item_name: itemName,
+                    quantity: quantity,
+                    reason: reason,
+                    user_id: user.id,
+                    created_at: new Date()
+                }]);
 
-            batch.commit()
-                .then(() => {
-                    document.getElementById('adjustmentQuantity').value = '';
-                    document.getElementById('adjustmentReason').value = '';
-                    adjustmentForm.style.display = 'none';
-                    loadAdjustments();
-                    loadItems();
-                })
-                .catch(error => {
-                    console.error("Error recording adjustment:", error);
-                    alert("Error recording adjustment: " + error.message);
-                });
+            if (insertError) {
+                console.error("Error recording adjustment:", insertError);
+                alert("Error recording adjustment: " + insertError.message);
+                return;
+            }
+
+            document.getElementById('adjustmentQuantity').value = '';
+            document.getElementById('adjustmentReason').value = '';
+            adjustmentForm.style.display = 'none';
+            loadAdjustments();
+            loadItems();
         }
 
         // Delete Adjustment Function
-        function deleteAdjustment(adjustmentId, itemId, quantity) {
+        async function deleteAdjustment(adjustmentId, itemId, quantity) {
             if (!confirm('Are you sure you want to delete this adjustment?')) {
                 return;
             }
 
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Start a batch write to restore item quantity and delete adjustment record
-            const batch = db.batch();
-            
-            // Restore item quantity
-            const itemRef = db.collection(`users/${user.uid}/items`).doc(itemId);
-            batch.update(itemRef, {
-                quantity: firebase.firestore.FieldValue.increment(-quantity)
-            });
+            // Get current item quantity
+            const { data: item, error: itemError } = await supabase
+                .from('items')
+                .select('*')
+                .eq('id', itemId)
+                .single();
+
+            if (itemError) {
+                console.error("Error getting item:", itemError);
+                alert("Error getting item: " + itemError.message);
+                return;
+            }
+
+            // Update item quantity
+            const { error: updateError } = await supabase
+                .from('items')
+                .update({ remaining: item.remaining - quantity })
+                .eq('id', itemId);
+
+            if (updateError) {
+                console.error("Error updating item quantity:", updateError);
+                alert("Error updating item quantity: " + updateError.message);
+                return;
+            }
 
             // Delete adjustment record
-            const adjustmentRef = db.collection(`users/${user.uid}/adjustments`).doc(adjustmentId);
-            batch.delete(adjustmentRef);
+            const { error: deleteError } = await supabase
+                .from('adjustments')
+                .delete()
+                .eq('id', adjustmentId);
 
-            batch.commit()
-                .then(() => {
-                    loadAdjustments();
-                    loadItems();
-                })
-                .catch(error => {
-                    console.error("Error deleting adjustment:", error);
-                    alert("Error deleting adjustment: " + error.message);
-                });
+            if (deleteError) {
+                console.error("Error deleting adjustment:", deleteError);
+                alert("Error deleting adjustment: " + deleteError.message);
+                return;
+            }
+
+            loadAdjustments();
+            loadItems();
         }
 
         // Add new function for clearing all data
         async function clearAllData() {
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
             // Show warning and get confirmation
@@ -1507,20 +1565,29 @@
             }
 
             try {
-                // Get all collections
-                const collections = ['items', 'sales', 'adjustments'];
-                
-                // Delete all documents in each collection
-                for (const collection of collections) {
-                    const snapshot = await db.collection(`users/${user.uid}/${collection}`).get();
-                    const batch = db.batch();
-                    
-                    snapshot.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
-                    
-                    await batch.commit();
-                }
+                // Delete all items
+                const { error: itemsError } = await supabase
+                    .from('items')
+                    .delete()
+                    .eq('user_id', user.id);
+
+                if (itemsError) throw itemsError;
+
+                // Delete all sales
+                const { error: salesError } = await supabase
+                    .from('sales')
+                    .delete()
+                    .eq('user_id', user.id);
+
+                if (salesError) throw salesError;
+
+                // Delete all adjustments
+                const { error: adjustmentsError } = await supabase
+                    .from('adjustments')
+                    .delete()
+                    .eq('user_id', user.id);
+
+                if (adjustmentsError) throw adjustmentsError;
 
                 // Show success message
                 alert('All data has been cleared successfully.');
@@ -1615,23 +1682,34 @@
 
         // Add new function to calculate monthly summary
         async function calculateMonthlySummary() {
-            const user = auth.currentUser;
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
             try {
                 // Get all items and sales
-                const [itemsSnapshot, salesSnapshot] = await Promise.all([
-                    db.collection(`users/${user.uid}/items`).get(),
-                    db.collection(`users/${user.uid}/sales`).get()
+                const [itemsResponse, salesResponse] = await Promise.all([
+                    supabase
+                        .from('items')
+                        .select('*')
+                        .eq('user_id', user.id),
+                    supabase
+                        .from('sales')
+                        .select('*')
+                        .eq('user_id', user.id)
                 ]);
+
+                if (itemsResponse.error) throw itemsResponse.error;
+                if (salesResponse.error) throw salesResponse.error;
+
+                const items = itemsResponse.data;
+                const sales = salesResponse.data;
 
                 // Create a map to store monthly data
                 const monthlyData = new Map();
 
                 // Process items
-                itemsSnapshot.forEach(doc => {
-                    const item = doc.data();
-                    const date = item.createdAt.toDate();
+                items.forEach(item => {
+                    const date = new Date(item.created_at);
                     const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
                     
                     if (!monthlyData.has(monthKey)) {
@@ -1647,13 +1725,12 @@
                     }
                     
                     const monthData = monthlyData.get(monthKey);
-                    monthData.totalItemValue += item.remaining * item.wholesalePrice;
+                    monthData.totalItemValue += item.remaining * item.wholesale_price;
                 });
 
                 // Process sales
-                salesSnapshot.forEach(doc => {
-                    const sale = doc.data();
-                    const date = sale.createdAt.toDate();
+                sales.forEach(sale => {
+                    const date = new Date(sale.created_at);
                     const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
                     const dayKey = date.toISOString().split('T')[0];
                     
@@ -1671,14 +1748,14 @@
                     
                     const monthData = monthlyData.get(monthKey);
                     monthData.numberOfSales += sale.quantity;
-                    monthData.totalSoldValue += sale.salePrice * sale.quantity;
+                    monthData.totalSoldValue += sale.sale_price * sale.quantity;
                     monthData.totalProfit += sale.profit;
                     monthData.daysWithSales.add(dayKey);
                     
                     if (!monthData.salesByDay[dayKey]) {
                         monthData.salesByDay[dayKey] = { sales: 0, profit: 0 };
                     }
-                    monthData.salesByDay[dayKey].sales += sale.salePrice * sale.quantity;
+                    monthData.salesByDay[dayKey].sales += sale.sale_price * sale.quantity;
                     monthData.salesByDay[dayKey].profit += sale.profit;
                 });
 

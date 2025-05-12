@@ -167,7 +167,7 @@
             checkUser();
         });
     </script>
-    <style>
+  <style>
         :root {
             --primary-color: #4285F4;
             --secondary-color: #34A853;
@@ -725,7 +725,7 @@
                 grid-template-columns: repeat(2, 1fr);
             }
         }
-    </style>
+  </style>
 </head>
 <body>
     <div class="container">
@@ -870,9 +870,9 @@
                 </div>
             </div>
         </div>
-    </div>
+  </div>
 
-    <script>
+  <script>
         // DOM Elements
         const signInBtn = document.getElementById('sign-in-btn');
         const signOutBtn = document.getElementById('sign-out-btn');
@@ -1496,7 +1496,7 @@
             document.getElementById('adjustmentReason').value = '';
             adjustmentForm.style.display = 'none';
             loadAdjustments();
-            loadItems();
+          loadItems();
         }
 
         // Delete Adjustment Function
@@ -1618,7 +1618,7 @@
                 document.getElementById('profit-amount').textContent = profit.toFixed(2);
                 document.getElementById('profit-percentage').textContent = profitPercentage.toFixed(2);
                 profitDisplay.style.display = 'block';
-            } else {
+        } else {
                 profitDisplay.style.display = 'none';
             }
         }
@@ -1807,7 +1807,7 @@
             } catch (error) {
                 console.error("Error calculating monthly summary:", error);
             }
-        }
-    </script>
+    }
+  </script>
 </body>
 </html>
